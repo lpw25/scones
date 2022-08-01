@@ -82,3 +82,9 @@ module Utils where
       PathP (λ i -> cong (λ x -> Σ (B x) (λ y -> C x y)) p i) (x , u) (y , v)
   ΣPathP B C {p = p} q r =
     λ i -> q i , r i
+
+  funExt2 : ∀ {ℓ ℓ' ℓ''} {A : Type ℓ} {B : A → Type ℓ'} {C : (a : A) → B a → I → Type ℓ''}
+    {f : (x : A) → (y : B x) → C x y i0} {g : (x : A) → (y : B x) → C x y i1}
+    → ((x : A) → (y : B x) → PathP (C x y) (f x y) (g x y))
+    → PathP (λ i → (x : A) → (y : B x) → C x y i) f g
+  funExt2 p i x y = p x y i

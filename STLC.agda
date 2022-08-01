@@ -10,6 +10,7 @@ open import Cubical.Foundations.HLevels
 open import Cubical.Foundations.Path
 open import Cubical.Data.Sum
 open import Cubical.Data.Empty
+import Cubical.Data.Bool
 open import Utils
 
 module STLC where
@@ -382,19 +383,21 @@ module STLC where
 
     pattern _/_ obj fib = record { obj = obj; fib = fib }
 
-    Subst : (m : Model l) -> Ctx m -> Ctx m -> Set l
-    Subst m Γ Δ =
-        Σ ((Ctx.obj Γ) ↣ (Ctx.obj Δ))
-          (λ obj -> (g : ∣ Ctx.obj Γ ∣) -> Ctx.fib Γ g -> Ctx.fib Δ (obj ∘ g))
-      where open Model m
+    record Subst (m : Model l) (Γ : Ctx m) (Δ : Ctx m) : Set (lsuc l) where
+      open Model m
+      field
+        obj : (Ctx.obj Γ) ↣ (Ctx.obj Δ)
+        fib : (g : ∣ Ctx.obj Γ ∣) -> Ctx.fib Γ g -> Ctx.fib Δ (obj ∘ g)
 
     subst-path :
-      {m : Model l} {Γ Δ : Ctx m} {σ δ : Subst m Γ Δ} (p1 : fst σ ≡ fst δ)
+      {m : Model l} {Γ Δ : Ctx m} {σ δ : Subst m Γ Δ} (p1 : Subst.obj σ ≡ Subst.obj δ)
         (p2 : (g : Model.∣_∣ m (Ctx.obj Γ)) -> (g' : Ctx.fib Γ g) ->
-               PathP (λ i -> Ctx.fib Δ (Model._∘_ m (p1 i) g)) (snd σ g g') (snd δ g g')) ->
+               PathP (λ i -> Ctx.fib Δ (Model._∘_ m (p1 i) g)) (Subst.fib σ g g') (Subst.fib δ g g')) ->
           σ ≡ δ
-    subst-path {l} {m} {Γ / Γ'} {Δ / Δ'} {σ , σ'} {δ , δ'} p1 p2 i =
-        (p1 i , λ g g' -> p2 g g' i)
+    subst-path {l} {m} {Γ / Γ'} {Δ / Δ'} {σ / σ'} {δ / δ'} p1 p2 i =
+      record
+        { obj = p1 i ;
+          fib = λ g g' → p2 g g' i }
       where open Model m
 
     record Ty (m : Model l) : Set (lsuc l) where
@@ -422,49 +425,15 @@ module STLC where
       where open Model m
 
     Subst-is-set : (m : Model l) -> {Γ Δ : Ctx m} -> isSet (Subst m Γ Δ)
-    Subst-is-set m {Γ} {Δ} (σ , σ') (δ , δ') p1 p2 i j =
-        let obj : (λ k → fst (p1 k)) ≡ (λ k → fst (p2 k))
-            obj = subst-is-set σ δ (λ k -> fst (p1 k)) (λ k -> fst (p2 k))
-        in
-        let fib : ?
-            fib = ?
-        in
-        obj i j ,
-        λ g g' -> {!!}
-{-
-          Ctx.is-set Δ (obj i j ∘ g)
-            (transp (λ l -> Ctx.fib Δ (obj i (j ∧ l) ∘ g)) (~ j) (σ' g g'))
-            (transp (λ l -> Ctx.fib Δ (obj i (j ∨ (~ l)) ∘ g)) j (δ' g g'))
-            {!transp (λ m -> PathP (λ k -> Ctx.fib Δ (obj (i ∧ m) (((~ m) ∧ k) ∨ (m ∧ j)) ∘ g))
-                              (transp (λ l -> Ctx.fib Δ (obj (i ∧ m) (j ∧ l) ∘ g)) (~ j) (σ' g g'))
-                              (transp (λ l -> Ctx.fib Δ (obj (i ∧ m) (j ∨ (~ l)) ∘ g)) j (δ' g g')))
-                    (~ i) (λ k -> snd (p1 k) g g')!}
-            {!
-   Ctx.fib Δ
-   (subst-is-set σ δ (λ k₁ → fst (p1 k₁)) (λ k₁ → fst (p2 k₁))
-    (i ∧ i0) j
-    ∘ g) !} i j
--}
+    Subst-is-set m {Γ} {Δ} =
+        isSetRetract (λ (σ / σ') → (σ , σ')) (λ (σ , σ') → (σ / σ')) (λ _ → refl)
+          (isSetΣ subst-is-set λ σ → isSetΠ2 λ g g' → Ctx.is-set Δ (σ ∘ g))
       where open Model m
-{- PathP (λ k -> Ctx.fib Δ (fst (p1 k) ∘ g)) (σ' g g') (δ g g')
-   PathP (λ k -> Ctx.fib Δ ((obj i j) ∘ g))
-     (transp (λ l -> Ctx.fib Δ (obj i (j ∧ l) ∘ g)) (~ j) (σ' g g'))
-     (transp (λ l -> Ctx.fib Δ (obj i (j ∨ (~ l)) ∘ g)) j (δ' g g'))
 
-   fst (p1 k)
-   obj i k
-
-   λ k -> transp (λ l -> Ctx.fib Δ (obj i (((j ∧ l) ∨ k) ∧ ((~ k) ∨ (j ∨ (~ l)))) ∘ g))
-            (((~ j) ∨ k) ∧ ((~ k) ∨ j)) (snd (p1 k) g g')
- -}
-
-    foo : (m : Model l) -> {Γ Δ : Ctx m} -> (σ : Subst m Γ Δ) -> (δ : Subst m Γ Δ) -> σ ≡ δ -> σ ≡ δ -> I -> I -> {!!}
-    foo m σ δ p q i j = {!fst (Subst-is-set m σ δ p q i j)!}
-{-
     Elm-is-set : (m : Model l) -> {Γ : Ctx m} -> {A : Ty m} -> isSet (Elm m Γ A)
     Elm-is-set m {Γ} {A} =
         isSetRetract
-          (λ (a / a') -> a , a') (λ (a , a') -> record { obj = a ; fib = a' })
+          (λ (a / a') -> a , a') (λ (a , a') -> ( a / a' ))
           (λ _ -> refl) (isSetΣ elem-is-set (λ x -> isSetΠ2 (λ g g' -> Ty.is-set A (x [ g ]))))
       where open Model m
 
@@ -719,8 +688,16 @@ module STLC where
             (elem-action m a (subst-ext m (compose m σ (subst-p m {Γ} A)) (elem-q m {Γ} {A})))
     subst-elem-abs m {Γ / Γ'} {Δ / Δ'} {A / A'} {B / B'} (σ / σ') (a / a') =
         elm-path (subst-abs σ a) λ g g' ->
-          {!!}
+          substPathP⁻ (λ g → (u : Elem [] A) → A' u → B' (app g u))
+            (elem-action-associativity σ g (abs a))
+            (funExt2 λ u u' →
+               substPathP⁻ (λ b → B' (app b u)) (subst-abs (σ ∘ g) a)
+                 (substPathP⁻ B' (arrow-beta (a [ ((σ ∘ g) ∘ p A) + q ]) u)
+                   (substPathP⁻ B'
+                      (elem-action-associativity (((σ ∘ g) ∘ p A) + q) (id + u) a)
+                       {!!})))
       where open Model m
+
 
     subst-elem-app : (m : Model l) {Γ Δ : Ctx m} {A B : Ty m}
       (σ : Subst m Γ Δ) (a : Elm m Δ (typ-arrow m A B)) (b : Elm m Δ A) ->
@@ -791,13 +768,15 @@ module STLC where
     subst-elem-true : (m : Model l) {Γ Δ : Ctx m} (σ : Subst m Γ Δ) ->
         elem-action m (elem-true m) σ ≡ elem-true m
     subst-elem-true m {Γ / Γ'} {Δ / Δ'} (σ / σ') =
-        {!!}
+        elm-path (subst-true σ) λ g g' →
+          {!!}
       where open Model m
 
     subst-elem-false : (m : Model l) {Γ Δ : Ctx m} (σ : Subst m Γ Δ) ->
         elem-action m (elem-false m) σ ≡ elem-false m
     subst-elem-false m {Γ / Γ'} {Δ / Δ'} (σ / σ') =
-        {!!}
+        elm-path (subst-false σ) λ g g' →
+          {!!}
       where open Model m
 
     subst-elem-brec : (m : Model l) {Γ Δ : Ctx m} {A : Ty m}
@@ -805,21 +784,24 @@ module STLC where
         elem-action m (elem-brec m A a b) σ
         ≡ elem-brec m A (elem-action m a σ) (elem-action m b σ)
     subst-elem-brec m {Γ / Γ'} {Δ / Δ'} {A / A'} (σ / σ') (a / a') (b / b') =
-        {!!}
+        elm-path (subst-brec σ a b) λ g g' →
+          {!!}
       where open Model m
 
     typ-bool-beta-true :
         (m : Model l) {Γ : Ctx m} {A : Ty m} (a : Elm m Γ A) (b : Elm m Γ A) ->
         elem-app m (elem-brec m A a b) (elem-true m) ≡ a
-    typ-bool-beta-true m =
-        {!!}
+    typ-bool-beta-true m (a / a') (b / b') =
+        elm-path (bool-beta-true a b) λ g g' →
+          {!!}
       where open Model m
 
     typ-bool-beta-false :
         (m : Model l) {Γ : Ctx m} {A : Ty m} (a : Elm m Γ A) (b : Elm m Γ A) ->
         elem-app m (elem-brec m A a b) (elem-false m) ≡ b
-    typ-bool-beta-false m =
-        {!!}
+    typ-bool-beta-false m (a / a') (b / b') =
+        elm-path (bool-beta-false a b) λ g g' →
+          {!!}
       where open Model m
 
   reducibility-model : {l : Level} -> Model l -> Model (lsuc l)
@@ -887,7 +869,7 @@ module STLC where
 
   subst-obj-identity : {Γ Δ : Initial.Context} (σ : Γ Initial.↣ Δ) ->
      PathP (λ i -> (ctx-obj-identity Γ i) Initial.↣ (ctx-obj-identity Δ i))
-       (fst (Model-Morphism.S initial-reducibility-morphism σ))
+       (Reducibility.Subst.obj (Model-Morphism.S initial-reducibility-morphism σ))
        σ
   elem-obj-identity : {Γ : Initial.Context} {A : Initial.Typ} (a : Initial.Elem Γ A) ->
      PathP (λ i -> Initial.Elem (ctx-obj-identity Γ i) (typ-obj-identity A i))
@@ -926,44 +908,64 @@ module STLC where
       (λ l -> subst-obj-identity (q l) i)
       j k
 -}
-  subst-obj-identity (Initial.left-identity σ j) i = {!
-         (Model-Morphism.S initial-reducibility-morphism
-          (Initial.left-identity σ j))!}
-
-    {- Initial.left-identity (subst-obj-identity σ i) j -}
-  elem-obj-identity (a Initial.[ σ ]) i = {!!}
-  elem-obj-identity (Initial.elem-action-identity a j) i = {!!}
-  elem-obj-identity (Initial.elem-action-associativity σ δ a j) i = {!!}
-  elem-obj-identity Initial.q i = {!!}
-  elem-obj-identity (Initial.var σ a j) i = {!!}
-  elem-obj-identity (Initial.abs a) i = {!!}
-  elem-obj-identity (Initial.app a b) i = {!!}
-  elem-obj-identity (Initial.subst-abs σ a j) i = {!!}
-  elem-obj-identity (Initial.subst-app σ a b j) i = {!!}
-  elem-obj-identity (Initial.arrow-beta a b j) i = {!!}
-  elem-obj-identity (Initial.arrow-eta a j) i = {!!}
-  elem-obj-identity Initial.true i = {!!}
-  elem-obj-identity Initial.false i = {!!}
-  elem-obj-identity (Initial.brec A a b) i = {!!}
-  elem-obj-identity (Initial.subst-true σ j) i = {!!}
-  elem-obj-identity (Initial.subst-false σ j) i = {!!}
-  elem-obj-identity (Initial.subst-brec σ a b j) i = {!!}
-  elem-obj-identity (Initial.bool-beta-true a b j) i = {!!}
-  elem-obj-identity (Initial.bool-beta-false a b j) i = {!!}
+  subst-obj-identity (Initial.left-identity σ j) i =
+    Initial.left-identity (subst-obj-identity σ i) j
+  elem-obj-identity (a Initial.[ σ ]) i = (elem-obj-identity a i) Initial.[ subst-obj-identity σ i ]
+  elem-obj-identity (Initial.elem-action-identity a j) i =
+    Initial.elem-action-identity (elem-obj-identity a i) j
+  elem-obj-identity (Initial.elem-action-associativity σ δ a j) i =
+    Initial.elem-action-associativity
+      (subst-obj-identity σ i) (subst-obj-identity δ i)
+      (elem-obj-identity a i) j
+  elem-obj-identity Initial.q i = Initial.q
+  elem-obj-identity (Initial.var σ a j) i =
+    Initial.var (subst-obj-identity σ i) (elem-obj-identity a i) j
+  elem-obj-identity (Initial.abs a) i = Initial.abs (elem-obj-identity a i)
+  elem-obj-identity (Initial.app a b) i =
+    Initial.app (elem-obj-identity a i) (elem-obj-identity b i)
+  elem-obj-identity (Initial.subst-abs σ a j) i =
+    Initial.subst-abs (subst-obj-identity σ i) (elem-obj-identity a i) j
+  elem-obj-identity (Initial.subst-app σ a b j) i =
+    Initial.subst-app (subst-obj-identity σ i)
+      (elem-obj-identity a i) (elem-obj-identity b i) j
+  elem-obj-identity (Initial.arrow-beta a b j) i =
+    Initial.arrow-beta (elem-obj-identity a i) (elem-obj-identity b i) j
+  elem-obj-identity (Initial.arrow-eta a j) i =
+    Initial.arrow-eta (elem-obj-identity a i) j
+  elem-obj-identity Initial.true i = Initial.true
+  elem-obj-identity Initial.false i = Initial.false
+  elem-obj-identity (Initial.brec A a b) i =
+    Initial.brec (typ-obj-identity A i)
+      (elem-obj-identity a i) (elem-obj-identity b i)
+  elem-obj-identity (Initial.subst-true σ j) i =
+    Initial.subst-true (subst-obj-identity σ i) j
+  elem-obj-identity (Initial.subst-false σ j) i =
+    Initial.subst-false (subst-obj-identity σ i) j
+  elem-obj-identity (Initial.subst-brec σ a b j) i =
+    Initial.subst-brec (subst-obj-identity σ i)
+      (elem-obj-identity a i) (elem-obj-identity b i) j
+  elem-obj-identity (Initial.bool-beta-true a b j) i =
+    Initial.bool-beta-true (elem-obj-identity a i) (elem-obj-identity b i) j
+  elem-obj-identity (Initial.bool-beta-false a b j) i =
+    Initial.bool-beta-false (elem-obj-identity a i) (elem-obj-identity b i) j
   elem-obj-identity (Initial.is-set a b p q j k) i = {!!}
 
   canonicity-exists :
     (b : Model.Elem initial-model (Model.[] initial-model) (Model.bool initial-model)) ->
     (b ≡ Model.true initial-model) ⊎ (b ≡ Model.false initial-model)
   canonicity-exists b =
-    let b' = Model-Morphism.E initial-reducibility-morphism b in
-    let b'' = Reducibility.Elm.fib b' in
-    let b''' = b'' Initial.id (lift tt) in
-    let b'''' = subst (λ a -> (a ≡ Initial.true) ⊎ (a ≡ Initial.false)) (Initial.elem-action-identity _) b''' in
-     {!Reducibility.Elm.obj
-         (Model-Morphism.E initial-reducibility-morphism b)!}
+    subst (λ a -> (a ≡ Initial.true) ⊎ (a ≡ Initial.false)) (elem-obj-identity b)
+      (subst (λ a -> (a ≡ Initial.true) ⊎ (a ≡ Initial.false)) (Initial.elem-action-identity _)
+        (Reducibility.Elm.fib (Model-Morphism.E initial-reducibility-morphism b) Initial.id (lift tt)))
 
   canonicity-unique :
     (Model.true initial-model {Model.[] initial-model} ≡ Model.false initial-model) -> ⊥
-  canonicity-unique p = {!!}
--}
+  canonicity-unique p =
+    Cubical.Data.Bool.true≢false
+      (λ i →
+        Cubical.Data.Sum.elim
+          (λ _ → Cubical.Data.Bool.true)
+          (λ _ → Cubical.Data.Bool.false)
+          (Reducibility.Elm.fib
+             (Model-Morphism.E initial-reducibility-morphism (p i))
+             Initial.id (lift tt)))
